@@ -2,8 +2,15 @@ from flask import Flask, render_template, request
 import subprocess
 import datetime
 import os
+import google.generativeai as genai
 
 app = Flask(__name__)
+
+GEMINI_API_KEY = "AIzaSyDXBD-AtN2xXg4sS43ulhzqDwI7288hz2Q"
+genai.configure(api_key=GEMINI_API_KEY)
+
+model = genai.GenerativeModel("gemini-1.5-flash")
+
 
 def run_scan(target, scan_type):
     if not os.path.exists("scan_results"):
@@ -28,18 +35,45 @@ def run_scan(target, scan_type):
 
     return result.stdout
 
+
+def explain_with_ai(scan_output):
+    prompt = f"""
+Explain this Nmap scan result in simple beginner-friendly language.
+
+Include:
+1. Summary of the scan
+2. Open ports found
+3. Meaning of each service
+4. Possible risks
+5. Safety recommendations
+
+Nmap scan result:
+{scan_output}
+"""
+
+    response = model.generate_content(prompt)
+    return response.text
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
-    output = ""
+    raw_output = ""
+    ai_output = ""
 
     if request.method == "POST":
         target = request.form.get("target")
         scan_type = request.form.get("scan")
 
         if target:
-            output = run_scan(target, scan_type)
+            raw_output = run_scan(target, scan_type)
+            ai_output = explain_with_ai(raw_output)
 
-    return render_template("index.html", output=output)
+    return render_template(
+        "index.html",
+        raw_output=raw_output,
+        ai_output=ai_output
+    )
+
 
 if __name__ == "__main__":
     app.run(debug=True)
